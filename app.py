@@ -3041,43 +3041,73 @@ HTML_PAGE = """
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_id = str(message.from_user.id)
-    user_name = message.from_user.first_name
-    if message.from_user.last_name:
-        user_name += ' ' + message.from_user.last_name
-    username = message.from_user.username or ''
-    
-    # حفظ معلومات المستخدم في Firebase
     try:
-        user_ref = db.collection('users').document(user_id)
-        user_doc = user_ref.get()
+        user_id = str(message.from_user.id)
+        user_name = message.from_user.first_name
+        if message.from_user.last_name:
+            user_name += ' ' + message.from_user.last_name
+        username = message.from_user.username or ''
         
-        if not user_doc.exists:
-            # مستخدم جديد - إنشاء حساب
-            user_ref.set({
-                'telegram_id': user_id,
-                'name': user_name,
-                'username': username,
-                'balance': 0.0,
-                'created_at': firestore.SERVER_TIMESTAMP,
-                'last_seen': firestore.SERVER_TIMESTAMP
-            })
-            users_wallets[user_id] = 0.0
-        else:
-            # مستخدم موجود - تحديث آخر ظهور
-            user_ref.update({
-                'name': user_name,
-                'username': username,
-                'last_seen': firestore.SERVER_TIMESTAMP
-            })
+        print(f"✅ استقبال أمر /start من {user_name} ({user_id})")
+        
+        # حفظ معلومات المستخدم في Firebase
+        try:
+            if db:
+                user_ref = db.collection('users').document(user_id)
+                user_doc = user_ref.get()
+                
+                if not user_doc.exists:
+                    # مستخدم جديد - إنشاء حساب
+                    user_ref.set({
+                        'telegram_id': user_id,
+                        'name': user_name,
+                        'username': username,
+                        'balance': 0.0,
+                        'created_at': firestore.SERVER_TIMESTAMP,
+                        'last_seen': firestore.SERVER_TIMESTAMP
+                    })
+                    users_wallets[user_id] = 0.0
+                    print(f"✅ تم إنشاء حساب جديد للمستخدم {user_id}")
+                else:
+                    # مستخدم موجود - تحديث آخر ظهور
+                    user_ref.update({
+                        'name': user_name,
+                        'username': username,
+                        'last_seen': firestore.SERVER_TIMESTAMP
+                    })
+                    print(f"✅ تم تحديث بيانات المستخدم {user_id}")
+        except Exception as e:
+            print(f"⚠️ خطأ في حفظ معلومات المستخدم: {e}")
+        
+        # إنشاء لوحة أزرار تفاعلية
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+        
+        # الأزرار
+        btn_code = types.KeyboardButton("🔐 كود الدخول")
+        btn_web = types.KeyboardButton("🏪 افتح السوق")
+        btn_myid = types.KeyboardButton("🆔 معرفي")
+        
+        # إضافة الأزرار
+        markup.add(btn_code, btn_web)
+        markup.add(btn_myid)
+        
+        # رسالة الترحيب
+        bot.send_message(
+            message.chat.id,
+            "🌟 **أهلاً بك في السوق الآمن!** 🛡️\n\n"
+            "منصة آمنة للبيع والشراء مع نظام حماية الأموال ❄️\n\n"
+            "📌 **اختر من الأزرار أدناه:**",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+        print(f"✅ تم إرسال رسالة الترحيب")
     except Exception as e:
-        print(f"⚠️ خطأ في حفظ معلومات المستخدم: {e}")
-    
-    # إنشاء لوحة أزرار تفاعلية
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    
-    # الأزرار
-    btn_code = types.KeyboardButton("🔐 كود الدخول")
+        print(f"❌ خطأ في معالج /start: {e}")
+        try:
+            bot.send_message(message.chat.id, f"❌ حدث خطأ: {str(e)}")
+        except:
+            print(f"❌ فشل إرسال رسالة الخطأ")
+
     btn_web = types.KeyboardButton("🏪 افتح السوق")
     btn_myid = types.KeyboardButton("🆔 معرفي")
     
@@ -4629,10 +4659,14 @@ def buy_item():
 # لاستقبال تحديثات تيليجرام (Webhook)
 @app.route('/webhook', methods=['POST'])
 def getMessage():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
+    try:
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return "ok", 200
+    except Exception as e:
+        print(f"❌ خطأ في معالجة الرسالة: {e}")
+        return "error", 200
 
 @app.route("/set_webhook")
 def set_webhook():
