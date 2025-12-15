@@ -3130,6 +3130,7 @@ def send_welcome(message):
     "🔐 كود الدخول", "🏪 افتح السوق", "🆔 معرفي"
 ])
 def handle_buttons(message):
+    print(f"✅ استقبال ضغطة زر من {message.from_user.first_name}")
     if message.text == "🔐 كود الدخول":
         get_verification_code(message)
     
@@ -3138,6 +3139,18 @@ def handle_buttons(message):
     
     elif message.text == "🆔 معرفي":
         my_id(message)
+
+# معالج نصوص عام (لالتقاط جميع الرسائل الأخرى)
+@bot.message_handler(func=lambda message: True)
+def handle_unknown(message):
+    print(f"⚠️ رسالة غير معروفة: {message.text}")
+    bot.reply_to(message, 
+                 "📝 عذراً، لم أفهم الأمر\n\n"
+                 "استخدم الأزرار أعلاه أو جرّب:\n"
+                 "• /start - قائمة الأوامر\n"
+                 "• /code - احصل على كود تحقق\n"
+                 "• /my_id - معرفك")
+
 
 @bot.message_handler(commands=['my_id'])
 def my_id(message):
@@ -4661,19 +4674,54 @@ def buy_item():
 def getMessage():
     try:
         json_string = request.get_data().decode('utf-8')
+        print(f"📩 استقبال رسالة: {json_string[:100]}...")
+        
         update = telebot.types.Update.de_json(json_string)
+        
+        # التحقق من نوع التحديث
+        if update.message:
+            print(f"✅ رسالة نصية من {update.message.from_user.first_name}")
+        elif update.callback_query:
+            print(f"✅ استدعاء callback من {update.callback_query.from_user.first_name}")
+        else:
+            print(f"⚠️ تحديث غير معروف")
+        
+        # معالجة التحديث
         bot.process_new_updates([update])
+        print(f"✅ تم معالجة التحديث بنجاح")
         return "ok", 200
+        
     except Exception as e:
         print(f"❌ خطأ في معالجة الرسالة: {e}")
+        import traceback
+        traceback.print_exc()
         return "error", 200
 
 @app.route("/set_webhook")
 def set_webhook():
-    webhook_url = SITE_URL + "/webhook"
-    bot.remove_webhook()
-    bot.set_webhook(url=webhook_url)
-    return f"Webhook set to {webhook_url}", 200
+    try:
+        webhook_url = SITE_URL + "/webhook"
+        bot.remove_webhook()
+        time.sleep(0.1)
+        bot.set_webhook(url=webhook_url)
+        return f"✅ Webhook set to {webhook_url}", 200
+    except Exception as e:
+        print(f"❌ خطأ في تعيين webhook: {e}")
+        return f"❌ Error: {str(e)}", 500
+
+@app.route("/test_bot")
+def test_bot():
+    """اختبار سريع للبوت"""
+    try:
+        bot_info = bot.get_me()
+        return {
+            'status': 'ok',
+            'bot_name': bot_info.first_name,
+            'bot_username': bot_info.username,
+            'webhook_url': f"{SITE_URL}/webhook"
+        }, 200
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}, 500
 
 # Health check endpoint for Render
 @app.route('/health')
