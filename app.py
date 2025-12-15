@@ -12,6 +12,10 @@ import time
 import uuid
 import firebase_admin
 from firebase_admin import credentials, firestore
+from dotenv import load_dotenv
+
+# تحميل متغيرات البيئة من .env (للتطوير)
+load_dotenv()
 
 # محاولة استيراد FieldFilter للنسخ الجديدة
 try:
@@ -24,23 +28,45 @@ except ImportError:
 # التحقق من وجود متغير البيئة أولاً (للإنتاج في Render)
 firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS")
 
-if firebase_credentials_json:
-    # استخدام المتغير البيئي (Render)
-    cred_dict = json.loads(firebase_credentials_json)
-    cred = credentials.Certificate(cred_dict)
-    print("✅ Firebase: استخدام المتغير البيئي (Production)")
-else:
-    # استخدام الملف المحلي (للتطوير)
-    cred = credentials.Certificate('serviceAccountKey.json')
-    print("✅ Firebase: استخدام الملف المحلي (Development)")
-
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+try:
+    if firebase_credentials_json:
+        # استخدام المتغير البيئي (Render)
+        cred_dict = json.loads(firebase_credentials_json)
+        cred = credentials.Certificate(cred_dict)
+        print("✅ Firebase: استخدام المتغير البيئي (Production)")
+    else:
+        # استخدام الملف المحلي (للتطوير)
+        if os.path.exists('serviceAccountKey.json'):
+            cred = credentials.Certificate('serviceAccountKey.json')
+            print("✅ Firebase: استخدام الملف المحلي (Development)")
+        else:
+            print("⚠️ تحذير: لا يوجد ملف Firebase ومتغير البيئة فارغ!")
+            cred = None
+    
+    if cred:
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ تم الاتصال بـ Firebase بنجاح")
+    else:
+        print("❌ فشل الاتصال بـ Firebase")
+        db = None
+except Exception as e:
+    print(f"❌ خطأ في إعداد Firebase: {e}")
+    db = None
 
 # --- إعدادات البوت ---
 # غير هذا الرقم إلى الآيدي الخاص بك في تيليجرام لتتمكن من شحن الأرصدة
 ADMIN_ID = 5665438577  
-TOKEN = os.environ.get("BOT_TOKEN", "default_token")
+TOKEN = os.environ.get("BOT_TOKEN")
+
+# التحقق من وجود TOKEN
+if not TOKEN:
+    print("❌ خطأ: متغير BOT_TOKEN غير موجود!")
+    print("   ستحتاج إلى تعيين BOT_TOKEN في Render Environment Variables")
+    TOKEN = "default_token"  # قيمة افتراضية لتجنب الأخطاء أثناء البدء
+else:
+    print(f"✅ تم تحميل BOT_TOKEN بنجاح")
+
 SITE_URL = os.environ.get("SITE_URL", "https://example.com")
 
 # قائمة المشرفين (آيدي تيليجرام)
